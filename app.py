@@ -1,174 +1,164 @@
 import streamlit as st
-import os
-import re
-import nltk
 import pandas as pd
+import numpy as np
 import PyPDF2
 import docx
+import re
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
-import plotly.express as px
+import matplotlib.pyplot as plt
 
 # ------------------ PAGE CONFIG ------------------
 st.set_page_config(page_title="AI Resume Screener", layout="wide")
-
-# ------------------ NLP SETUP ------------------
-nltk.download("stopwords")
-from nltk.corpus import stopwords
-STOP_WORDS = set(stopwords.words("english"))
 
 # ------------------ SESSION STATE ------------------
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 
-if "username" not in st.session_state:
-    st.session_state.username = ""
+# ------------------ FUNCTIONS ------------------
+def extract_text_pdf(file):
+    reader = PyPDF2.PdfReader(file)
+    text = ""
+    for page in reader.pages:
+        text += page.extract_text()
+    return text
+
+def extract_text_docx(file):
+    doc = docx.Document(file)
+    return " ".join([para.text for para in doc.paragraphs])
+
+def extract_candidate_name(text):
+    lines = text.split("\n")
+    return lines[0][:40]  # assume name is first line
 
 # ------------------ LOGIN PAGE ------------------
-def login_page():
-    st.markdown("<h1 style='text-align:center;'>🤖 Welcome to AI Resume Screener</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align:center;'>Smart AI-Based Resume Shortlisting System</p>", unsafe_allow_html=True)
-    st.write("---")
-
-    st.subheader("🔐 Login")
-
-    username = st.text_input("Username")
-    password = st.text_input("Password", type="password")
-
-    if st.button("Login"):
-        if username.strip() and password.strip():
-            st.session_state.logged_in = True
-            st.session_state.username = username
-            st.rerun()
-        else:
-            st.error("Please enter both username and password")
-
-# ------------------ LOGOUT ------------------
-def logout():
-    st.session_state.logged_in = False
-    st.session_state.username = ""
-    st.session_state.pop("job_description", None)
-    st.session_state.pop("results", None)
-    st.rerun()
-
-# ------------------ TEXT CLEANING ------------------
-def clean_text(text):
-    text = text.lower()
-    text = re.sub(r"[^a-z ]", " ", text)
-    words = [w for w in text.split() if w not in STOP_WORDS]
-    return " ".join(words)
-
-# ------------------ TEXT EXTRACTION ------------------
-def extract_text(file):
-    if file.name.endswith(".pdf"):
-        reader = PyPDF2.PdfReader(file)
-        return " ".join([page.extract_text() or "" for page in reader.pages])
-    else:
-        doc = docx.Document(file)
-        return " ".join([p.text for p in doc.paragraphs])
-
-# =========================
-# MAIN APP FLOW (STEP 4)
-# =========================
-
 if not st.session_state.logged_in:
-    login_page()
+    st.markdown("<h1 style='text-align:center;'>WELCOME TO AI RESUME SCREENER</h1>", unsafe_allow_html=True)
 
+    col1, col2, col3 = st.columns([1,2,1])
+    with col2:
+        username = st.text_input("Login Name")
+        password = st.text_input("Password", type="password")
+
+        if st.button("Login"):
+            if username and password:
+                st.session_state.logged_in = True
+                st.success("Login Successful!")
+                st.experimental_rerun()
+            else:
+                st.error("Please enter login and password")
+
+# ------------------ DASHBOARD ------------------
 else:
-    st.sidebar.title("📊 Dashboard")
-    st.sidebar.write(f"👤 Welcome, **{st.session_state.username}**")
-
+    st.sidebar.title("Dashboard")
     menu = st.sidebar.radio(
-        "Navigate",
-        ["Job Description", "Upload & Screening", "Shortlisted Candidates"]
+        "Select Option",
+        ["Job Description", "Upload & Screening", "Shortlisted Candidates", "Graphs"]
     )
 
-    if st.sidebar.button("🚪 Logout"):
-        logout()
-
-    # ---------- JOB DESCRIPTION ----------
+    # ------------------ JOB DESCRIPTION ------------------
     if menu == "Job Description":
-        st.header("📝 Job Description")
+        st.header("📄 Job Description")
 
-        job_desc = st.text_area(
-            "Enter Job Description",
-            height=250,
-            value=st.session_state.get("job_description", "")
-        )
+        tech_languages = [
+            "Python", "Java", "C", "C++", "JavaScript", "SQL",
+            "HTML", "CSS", "React", "NodeJS", "Machine Learning",
+            "Data Science", "AI", "Cloud", "DevOps"
+        ]
 
-        if st.button("Save Job Description"):
-            if job_desc.strip():
-                st.session_state.job_description = job_desc
-                st.success("Job description saved successfully")
-            else:
-                st.warning("Please enter a job description")
+        non_tech_languages = [
+            "Communication", "Leadership", "Teamwork",
+            "Problem Solving", "Time Management",
+            "Critical Thinking", "Presentation Skills"
+        ]
 
-    # ---------- UPLOAD & SCREENING ----------
+        selected_tech = st.multiselect("Select Technical Skills", tech_languages)
+        selected_non_tech = st.multiselect("Select Non-Technical Skills", non_tech_languages)
+
+        job_desc = " ".join(selected_tech + selected_non_tech)
+        st.text_area("Generated Job Description", job_desc, height=150)
+
+        st.session_state.job_desc = job_desc
+
+    # ------------------ UPLOAD & SCREENING ------------------
     elif menu == "Upload & Screening":
-        if "job_description" not in st.session_state:
-            st.warning("⚠ Please enter Job Description first")
-        else:
-            st.header("📂 Upload Resumes & Screen")
+        st.header("📂 Upload Resumes & Screening")
 
+        if "job_desc" not in st.session_state or st.session_state.job_desc.strip() == "":
+            st.warning("Please complete Job Description first")
+        else:
             uploaded_files = st.file_uploader(
-                "Upload PDF or DOCX resumes",
+                "Upload PDF/DOCX Resumes",
                 type=["pdf", "docx"],
                 accept_multiple_files=True
             )
 
-            if uploaded_files and st.button("🔍 Screen Resumes"):
+            if uploaded_files:
                 resumes = []
                 names = []
 
                 for file in uploaded_files:
-                    text = extract_text(file)
-                    resumes.append(clean_text(text))
-                    names.append(os.path.splitext(file.name)[0])
+                    if file.name.endswith(".pdf"):
+                        text = extract_text_pdf(file)
+                    else:
+                        text = extract_text_docx(file)
 
-                jd_clean = clean_text(st.session_state.job_description)
+                    resumes.append(text)
+                    names.append(extract_candidate_name(text))
 
-                vectorizer = TfidfVectorizer()
-                vectors = vectorizer.fit_transform([jd_clean] + resumes)
-                scores = cosine_similarity(vectors[0:1], vectors[1:]).flatten() * 100
+                vectorizer = TfidfVectorizer(stop_words="english")
+                vectors = vectorizer.fit_transform([st.session_state.job_desc] + resumes)
 
-                results = pd.DataFrame({
+                similarity_scores = cosine_similarity(vectors[0:1], vectors[1:]).flatten()
+
+                df = pd.DataFrame({
                     "Candidate Name": names,
-                    "Match %": scores.round(2)
-                }).sort_values(by="Match %", ascending=False).reset_index(drop=True)
+                    "Score (%)": (similarity_scores * 100).round(2)
+                })
 
-                results.insert(0, "Rank", range(1, len(results) + 1))
-                st.session_state.results = results
+                df = df.sort_values(by="Score (%)", ascending=False)
 
-                st.success("Screening completed successfully")
+                st.subheader("📊 Screening Results")
+                st.dataframe(df)
 
-    # ---------- SHORTLISTED CANDIDATES ----------
+                st.session_state.results = df
+
+    # ------------------ SHORTLISTED CANDIDATES ------------------
     elif menu == "Shortlisted Candidates":
+        st.header("✅ Shortlisted Candidates")
+
         if "results" not in st.session_state:
-            st.info("No results available. Please screen resumes first.")
+            st.warning("Please perform screening first")
         else:
-            st.header("🏆 Shortlisted Candidates")
+            threshold = st.slider("Select Cut-off Score (%)", 0, 100, 60)
+            shortlisted = st.session_state.results[
+                st.session_state.results["Score (%)"] >= threshold
+            ]
 
-            results = st.session_state.results
-            st.dataframe(results, hide_index=True, use_container_width=True)
+            st.dataframe(shortlisted)
+            st.session_state.shortlisted = shortlisted
 
-            st.subheader("📈 Match Percentage Chart")
-            fig = px.bar(
-                results.sort_values("Match %"),
-                x="Match %",
-                y="Candidate Name",
-                orientation="h",
-                text="Match %",
-                height=500
-            )
-            fig.update_traces(textposition="outside")
-            st.plotly_chart(fig, use_container_width=True)
+    # ------------------ GRAPHS ------------------
+    elif menu == "Graphs":
+        st.header("📊 Candidate Comparison Graph")
 
-            st.download_button(
-                "⬇ Download Results (CSV)",
-                data=results.to_csv(index=False),
-                file_name="shortlisted_candidates.csv",
-                mime="text/csv"
-            )
+        if "results" not in st.session_state:
+            st.warning("No data available")
+        else:
+            df = st.session_state.results
+
+            fig, ax = plt.subplots()
+            ax.barh(df["Candidate Name"], df["Score (%)"])
+            ax.set_xlabel("Match Score (%)")
+            ax.set_ylabel("Candidate Name")
+            ax.set_title("Resume Screening Results")
+
+            st.pyplot(fig)
+
+    # ------------------ LOGOUT ------------------
+    st.sidebar.button("Logout", on_click=lambda: st.session_state.update({"logged_in": False}))
+
+
 
 
 
