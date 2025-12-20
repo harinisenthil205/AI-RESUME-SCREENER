@@ -103,6 +103,7 @@ else:
 
     # ---------- STEP 4: SHORTLISTING + GRAPHS ----------
     elif menu == "Shortlisting & Graphs":
+
     st.header("📊 Step 4: Shortlisting & Analysis")
 
     if not st.session_state.resumes:
@@ -121,7 +122,6 @@ else:
         df = pd.DataFrame(data)
         df = df.sort_values(by="Score", ascending=False)
 
-        # ---------- USER SHORTLIST OPTION ----------
         shortlist_count = st.selectbox(
             "Select number of candidates to shortlist",
             [5, 10, 15, 20, 50, 100]
@@ -129,11 +129,24 @@ else:
 
         shortlisted_df = df.head(shortlist_count).copy()
 
-        # ---------- SERIAL NUMBER STARTS FROM 1 ----------
+        # Serial numbers start from 1
         shortlisted_df.insert(0, "S.No", range(1, len(shortlisted_df) + 1))
 
         st.subheader("✅ Shortlisted Candidates")
         st.dataframe(shortlisted_df, hide_index=True)
+
+        st.subheader("📈 Shortlisted Candidate Scores")
+
+        fig, ax = plt.subplots()
+        ax.barh(
+            shortlisted_df["Candidate Name"],
+            shortlisted_df["Score"]
+        )
+        ax.set_xlabel("Matching Score")
+        ax.set_ylabel("Candidates")
+        ax.invert_yaxis()
+
+        st.pyplot(fig)
 
         # ---------- GRAPH (HORIZONTAL BAR LIKE IMAGE) ----------
         st.subheader("📈 Shortlisted Candidate Scores")
@@ -153,6 +166,7 @@ else:
     if st.sidebar.button("Logout"):
         st.session_state.logged_in = False
         st.rerun()
+
 
 
 
