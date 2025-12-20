@@ -45,18 +45,20 @@ def calculate_score(resume_text, jd_words):
 
 # ---------------- LOGIN PAGE ----------------
 if not st.session_state.logged_in:
-    st.markdown("<h1 style='text-align:center;'>WELCOME TO AI RESUME SCREENER</h1>", unsafe_allow_html=True)
+    st.markdown(
+        "<h1 style='text-align:center;'>WELCOME TO AI RESUME SCREENER</h1>",
+        unsafe_allow_html=True
+    )
 
-    username = st.text_input("Username")
-    password = st.text_input("Password", type="password")
+    u = st.text_input("Username")
+    p = st.text_input("Password", type="password")
 
     if st.button("Login"):
-        if username in USERS and USERS[username] == password:
+        if u.strip() != "" and p.strip() != "":
             st.session_state.logged_in = True
-            st.success("Login successful")
             st.rerun()
         else:
-            st.error("Invalid username or password")
+            st.error("Please enter username and password")
 
 # ---------------- DASHBOARD ----------------
 else:
@@ -183,6 +185,7 @@ else:
             ax.invert_yaxis()
 
             st.pyplot(fig)
+
 
 
 
