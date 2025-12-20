@@ -102,32 +102,53 @@ else:
                     st.success("Resumes Uploaded. Go to Shortlisting.")
 
     # ---------- STEP 4: SHORTLISTING + GRAPHS ----------
+        # ---------- STEP 4: SHORTLISTING + GRAPHS ----------
     elif menu == "Shortlisting & Graphs":
 
-    st.header("📊 Step 4: Shortlisting & Analysis")
+        st.header("📊 Step 4: Shortlisting & Analysis")
 
-    if not st.session_state.resumes:
-        st.warning("Upload resumes first")
-    else:
-        jd_words = st.session_state.job_desc.split()
-        data = []
+        if not st.session_state.resumes:
+            st.warning("Upload resumes first")
+        else:
+            jd_words = st.session_state.job_desc.split()
+            data = []
 
-        for r in st.session_state.resumes:
-            score = shortlist(r["text"], jd_words)
-            data.append({
-                "Candidate Name": r["name"],
-                "Score": score
-            })
+            for r in st.session_state.resumes:
+                score = shortlist(r["text"], jd_words)
+                data.append({
+                    "Candidate Name": r["name"],
+                    "Score": score
+                })
 
-        df = pd.DataFrame(data)
-        df = df.sort_values(by="Score", ascending=False)
+            df = pd.DataFrame(data)
+            df = df.sort_values(by="Score", ascending=False)
 
-        shortlist_count = st.selectbox(
-            "Select number of candidates to shortlist",
-            [5, 10, 15, 20, 50, 100]
-        )
+            shortlist_count = st.selectbox(
+                "Select number of candidates to shortlist",
+                [5, 10, 15, 20, 50, 100]
+            )
 
-        shortlisted_df = df.head(shortlist_count).copy()
+            shortlisted_df = df.head(shortlist_count).copy()
+
+            # Serial numbers start from 1 (NO 0,1,2 issue)
+            shortlisted_df.insert(0, "S.No", range(1, len(shortlisted_df) + 1))
+
+            st.subheader("✅ Shortlisted Candidates")
+            st.dataframe(shortlisted_df, hide_index=True)
+
+            st.subheader("📈 Shortlisted Candidate Scores")
+
+            fig, ax = plt.subplots()
+            ax.barh(
+                shortlisted_df["Candidate Name"],
+                shortlisted_df["Score"]
+            )
+            ax.set_xlabel("Matching Score")
+            ax.set_ylabel("Candidates")
+            ax.invert_yaxis()
+
+            st.pyplot(fig)
+
 
         # Serial numbers start from 1
         shortlisted_df.insert(0, "S.No", range(1, len(shortlisted_df) + 1))
@@ -147,25 +168,13 @@ else:
         ax.invert_yaxis()
 
         st.pyplot(fig)
-
-        # ---------- GRAPH (HORIZONTAL BAR LIKE IMAGE) ----------
-        st.subheader("📈 Shortlisted Candidate Scores")
-
-        fig, ax = plt.subplots()
-        ax.barh(
-            shortlisted_df["Candidate Name"],
-            shortlisted_df["Score"]
-        )
-        ax.set_xlabel("Matching Score")
-        ax.set_ylabel("Candidates")
-        ax.invert_yaxis()  # highest score on top
-
-        st.pyplot(fig)
+        
 
     # ---------- LOGOUT ----------
     if st.sidebar.button("Logout"):
         st.session_state.logged_in = False
         st.rerun()
+
 
 
 
