@@ -1,171 +1,146 @@
 import streamlit as st
-import pandas as pd
-import numpy as np
 import PyPDF2
 import docx
-import re
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
+import pandas as pd
 import matplotlib.pyplot as plt
 
-# ------------------ PAGE CONFIG ------------------
+# ---------------- PAGE CONFIG ----------------
 st.set_page_config(page_title="AI Resume Screener", layout="wide")
 
-# ------------------ SESSION STATE ------------------
-if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
+# ---------------- SESSION STATE ----------------
+for key in ["logged_in", "job_desc", "resumes", "results"]:
+    if key not in st.session_state:
+        st.session_state[key] = None
 
-# ------------------ FUNCTIONS ------------------
+# ---------------- FUNCTIONS ----------------
 def extract_text_pdf(file):
     reader = PyPDF2.PdfReader(file)
-    text = ""
-    for page in reader.pages:
-        text += page.extract_text()
-    return text
+    return " ".join(page.extract_text() for page in reader.pages)
 
 def extract_text_docx(file):
     doc = docx.Document(file)
-    return " ".join([para.text for para in doc.paragraphs])
+    return " ".join(p.text for p in doc.paragraphs)
 
 def extract_candidate_name(text):
-    lines = text.split("\n")
-    return lines[0][:40]  # assume name is first line
+    return text.split("\n")[0][:40]
 
-# ------------------ LOGIN PAGE ------------------
+def shortlist(resume_text, jd_words):
+    score = sum(1 for w in jd_words if w.lower() in resume_text.lower())
+    return score
+
+# ---------------- LOGIN ----------------
 if not st.session_state.logged_in:
     st.markdown("<h1 style='text-align:center;'>WELCOME TO AI RESUME SCREENER</h1>", unsafe_allow_html=True)
 
-    col1, col2, col3 = st.columns([1,2,1])
-    with col2:
-        username = st.text_input("Login Name")
-        password = st.text_input("Password", type="password")
+    u = st.text_input("Login Name")
+    p = st.text_input("Password", type="password")
 
-        if st.button("Login"):
-            if username and password:
-                st.session_state.logged_in = True
-                st.success("Login Successful!")
-                st.rerun()
+    if st.button("Login"):
+        if u and p:
+            st.session_state.logged_in = True
+            st.rerun()
+        else:
+            st.error("Enter login details")
 
-            else:
-                st.error("Please enter login and password")
-
-# ------------------ DASHBOARD ------------------
+# ---------------- DASHBOARD ----------------
 else:
-    st.sidebar.title("Dashboard")
+    # -------- STEP INDICATOR --------
+    st.markdown("""
+    **✔ Step 1: Login → ✔ Step 2: Job Description → ✔ Step 3: Upload Resumes → ✔ Step 4: Shortlisting**
+    """)
+
     menu = st.sidebar.radio(
-        "Select Option",
-        ["Job Description", "Upload & Screening", "Shortlisted Candidates", "Graphs"]
+        "Navigate",
+        ["Job Description", "Upload Resumes", "Shortlisting & Graphs"]
     )
 
-    # ------------------ JOB DESCRIPTION ------------------
+    # ---------- STEP 2: JOB DESCRIPTION ----------
     if menu == "Job Description":
-    st.header("📄 Job Description")
+        st.header("📄 Step 2: Job Description")
 
-    tech_languages = [
-        "Python", "Java", "C", "C++", "JavaScript", "SQL",
-        "HTML", "CSS", "React", "NodeJS", "Machine Learning",
-        "Data Science", "AI", "Cloud", "DevOps"
-    ]
+        tech = ["Python", "Java", "SQL", "AI", "ML", "Web Development"]
+        non_tech = ["Communication", "Leadership", "Teamwork"]
 
-    non_tech_languages = [
-        "Communication", "Leadership", "Teamwork",
-        "Problem Solving", "Time Management",
-        "Critical Thinking", "Presentation Skills"
-    ]
+        t = st.multiselect("Technical Skills", tech)
+        nt = st.multiselect("Non-Technical Skills", non_tech)
 
-    selected_tech = st.multiselect("Select Technical Skills", tech_languages)
-    selected_non_tech = st.multiselect("Select Non-Technical Skills", non_tech_languages)
+        jd = " ".join(t + nt)
+        st.text_area("Generated Job Description", jd, height=120)
 
-    job_desc = " ".join(selected_tech + selected_non_tech)
+        if st.button("✅ Save Job Description"):
+            if jd:
+                st.session_state.job_desc = jd
+                st.success("Job Description Saved. Go to Upload Resumes.")
+            else:
+                st.error("Select at least one skill")
 
-    st.text_area("Generated Job Description", job_desc, height=150)
+    # ---------- STEP 3: UPLOAD ----------
+    elif menu == "Upload Resumes":
+        st.header("📂 Step 3: Upload Resumes")
 
-    if st.button("✅ Save Job Description"):
-        if not selected_tech and not selected_non_tech:
-            st.error("Please select at least one skill")
+        if not st.session_state.job_desc:
+            st.warning("Complete Job Description first")
         else:
-            st.session_state.job_desc = job_desc
-            st.success("Job Description saved! You may proceed to Upload & Screening.")
+            files = st.file_uploader(
+                "Upload resumes",
+                type=["pdf", "docx"],
+                accept_multiple_files=True
+            )
 
-    # ------------------ UPLOAD & SCREENING ------------------
-    elif menu == "Upload & Screening":
-    st.header("📂 Upload Resumes")
+            if files:
+                resumes = []
 
-    if "job_desc" not in st.session_state:
-        st.warning("Please complete Job Description first")
-    else:
-        uploaded_files = st.file_uploader(
-            "Upload PDF/DOCX Resumes",
-            type=["pdf", "docx"],
-            accept_multiple_files=True
-        )
+                for f in files:
+                    text = extract_text_pdf(f) if f.name.endswith(".pdf") else extract_text_docx(f)
+                    resumes.append({
+                        "name": extract_candidate_name(text),
+                        "text": text
+                    })
 
-        if uploaded_files:
-            resumes = []
-            names = []
+                if st.button("✅ Upload Done"):
+                    st.session_state.resumes = resumes
+                    st.success("Resumes Uploaded. Go to Shortlisting.")
 
-            for file in uploaded_files:
-                if file.name.endswith(".pdf"):
-                    text = extract_text_pdf(file)
-                else:
-                    text = extract_text_docx(file)
+    # ---------- STEP 4: SHORTLISTING + GRAPHS ----------
+    elif menu == "Shortlisting & Graphs":
+        st.header("📊 Step 4: Shortlisting & Analysis")
 
-                resumes.append(text)
-                names.append(extract_candidate_name(text))
-
-            st.session_state.resumes = resumes
-            st.session_state.names = names
-
-            if st.button("✅ Upload Done"):
-                st.success("Resumes uploaded successfully! You may proceed to Shortlisting.")
-
-    # ------------------ SHORTLISTED CANDIDATES ------------------
-    elif menu == "Shortlisted Candidates":
-    st.header("✅ Shortlisted Candidates")
-
-    if "resumes" not in st.session_state or "job_desc" not in st.session_state:
-        st.warning("Please complete Job Description and Upload Resumes first")
-    else:
-        vectorizer = TfidfVectorizer(stop_words="english")
-        vectors = vectorizer.fit_transform(
-            [st.session_state.job_desc] + st.session_state.resumes
-        )
-
-        similarity_scores = cosine_similarity(
-            vectors[0:1], vectors[1:]
-        ).flatten()
-
-        df = pd.DataFrame({
-            "Candidate Name": st.session_state.names,
-            "Score (%)": (similarity_scores * 100).round(2)
-        }).sort_values(by="Score (%)", ascending=False)
-
-        threshold = st.slider("Select Cut-off Score (%)", 0, 100, 60)
-        shortlisted = df[df["Score (%)"] >= threshold]
-
-        st.dataframe(shortlisted)
-
-        st.session_state.results = df
-
-    # ------------------ GRAPHS ------------------
-    elif menu == "Graphs":
-        st.header("📊 Candidate Comparison Graph")
-
-        if "results" not in st.session_state:
-            st.warning("No data available")
+        if not st.session_state.resumes:
+            st.warning("Upload resumes first")
         else:
-            df = st.session_state.results
+            jd_words = st.session_state.job_desc.split()
+            data = []
 
+            for r in st.session_state.resumes:
+                score = shortlist(r["text"], jd_words)
+                status = "Shortlisted" if score >= 2 else "Not Shortlisted"
+
+                data.append({
+                    "Candidate Name": r["name"],
+                    "Score": score,
+                    "Status": status
+                })
+
+            df = pd.DataFrame(data)
+            st.dataframe(df)
+
+            # -------- GRAPHS (SAME PAGE) --------
+            st.subheader("📈 Shortlisting Summary")
+
+            summary = df["Status"].value_counts()
             fig, ax = plt.subplots()
-            ax.barh(df["Candidate Name"], df["Score (%)"])
-            ax.set_xlabel("Match Score (%)")
-            ax.set_ylabel("Candidate Name")
-            ax.set_title("Resume Screening Results")
+            ax.bar(summary.index, summary.values)
+            ax.set_ylabel("Candidates")
+            ax.set_title("Shortlisting Result")
 
             st.pyplot(fig)
 
-    # ------------------ LOGOUT ------------------
-    st.sidebar.button("Logout", on_click=lambda: st.session_state.update({"logged_in": False}))
+    # ---------- LOGOUT ----------
+    if st.sidebar.button("Logout"):
+        st.session_state.logged_in = False
+        st.rerun()
+
+
 
 
 
