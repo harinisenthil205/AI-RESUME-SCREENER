@@ -110,8 +110,7 @@ else:
                     st.success("Resumes Uploaded. Go to Shortlisting.")
 
     # ---------- STEP 4: SHORTLISTING + GRAPHS ----------
-        # ---------- STEP 4: SHORTLISTING + GRAPHS ----------
-    elif menu == "Shortlisting & Graphs":
+        elif menu == "Shortlisting & Graphs":
 
         st.header("📊 Step 4: Shortlisting & Analysis")
 
@@ -138,8 +137,10 @@ else:
 
             shortlisted_df = df.head(shortlist_count).copy()
 
-            # Serial numbers start from 1 (NO 0,1,2 issue)
-            shortlisted_df.insert(0, "S.No", range(1, len(shortlisted_df) + 1))
+            # ✅ Serial numbers start from 1 (NO 0,1,2 issue)
+            shortlisted_df.insert(
+                0, "S.No", range(1, len(shortlisted_df) + 1)
+            )
 
             st.subheader("✅ Shortlisted Candidates")
             st.dataframe(shortlisted_df, hide_index=True)
@@ -177,6 +178,7 @@ else:
 
         st.pyplot(fig)
         
+
 
 
 
