@@ -59,85 +59,93 @@ else:
 
     # ------------------ JOB DESCRIPTION ------------------
     if menu == "Job Description":
-        st.header("📄 Job Description")
+    st.header("📄 Job Description")
 
-        tech_languages = [
-            "Python", "Java", "C", "C++", "JavaScript", "SQL",
-            "HTML", "CSS", "React", "NodeJS", "Machine Learning",
-            "Data Science", "AI", "Cloud", "DevOps"
-        ]
+    tech_languages = [
+        "Python", "Java", "C", "C++", "JavaScript", "SQL",
+        "HTML", "CSS", "React", "NodeJS", "Machine Learning",
+        "Data Science", "AI", "Cloud", "DevOps"
+    ]
 
-        non_tech_languages = [
-            "Communication", "Leadership", "Teamwork",
-            "Problem Solving", "Time Management",
-            "Critical Thinking", "Presentation Skills"
-        ]
+    non_tech_languages = [
+        "Communication", "Leadership", "Teamwork",
+        "Problem Solving", "Time Management",
+        "Critical Thinking", "Presentation Skills"
+    ]
 
-        selected_tech = st.multiselect("Select Technical Skills", tech_languages)
-        selected_non_tech = st.multiselect("Select Non-Technical Skills", non_tech_languages)
+    selected_tech = st.multiselect("Select Technical Skills", tech_languages)
+    selected_non_tech = st.multiselect("Select Non-Technical Skills", non_tech_languages)
 
-        job_desc = " ".join(selected_tech + selected_non_tech)
-        st.text_area("Generated Job Description", job_desc, height=150)
+    job_desc = " ".join(selected_tech + selected_non_tech)
 
-        st.session_state.job_desc = job_desc
+    st.text_area("Generated Job Description", job_desc, height=150)
+
+    if st.button("✅ Save Job Description"):
+        if not selected_tech and not selected_non_tech:
+            st.error("Please select at least one skill")
+        else:
+            st.session_state.job_desc = job_desc
+            st.success("Job Description saved! You may proceed to Upload & Screening.")
 
     # ------------------ UPLOAD & SCREENING ------------------
     elif menu == "Upload & Screening":
-        st.header("📂 Upload Resumes & Screening")
+    st.header("📂 Upload Resumes")
 
-        if "job_desc" not in st.session_state or st.session_state.job_desc.strip() == "":
-            st.warning("Please complete Job Description first")
-        else:
-            uploaded_files = st.file_uploader(
-                "Upload PDF/DOCX Resumes",
-                type=["pdf", "docx"],
-                accept_multiple_files=True
-            )
+    if "job_desc" not in st.session_state:
+        st.warning("Please complete Job Description first")
+    else:
+        uploaded_files = st.file_uploader(
+            "Upload PDF/DOCX Resumes",
+            type=["pdf", "docx"],
+            accept_multiple_files=True
+        )
 
-            if uploaded_files:
-                resumes = []
-                names = []
+        if uploaded_files:
+            resumes = []
+            names = []
 
-                for file in uploaded_files:
-                    if file.name.endswith(".pdf"):
-                        text = extract_text_pdf(file)
-                    else:
-                        text = extract_text_docx(file)
+            for file in uploaded_files:
+                if file.name.endswith(".pdf"):
+                    text = extract_text_pdf(file)
+                else:
+                    text = extract_text_docx(file)
 
-                    resumes.append(text)
-                    names.append(extract_candidate_name(text))
+                resumes.append(text)
+                names.append(extract_candidate_name(text))
 
-                vectorizer = TfidfVectorizer(stop_words="english")
-                vectors = vectorizer.fit_transform([st.session_state.job_desc] + resumes)
+            st.session_state.resumes = resumes
+            st.session_state.names = names
 
-                similarity_scores = cosine_similarity(vectors[0:1], vectors[1:]).flatten()
-
-                df = pd.DataFrame({
-                    "Candidate Name": names,
-                    "Score (%)": (similarity_scores * 100).round(2)
-                })
-
-                df = df.sort_values(by="Score (%)", ascending=False)
-
-                st.subheader("📊 Screening Results")
-                st.dataframe(df)
-
-                st.session_state.results = df
+            if st.button("✅ Upload Done"):
+                st.success("Resumes uploaded successfully! You may proceed to Shortlisting.")
 
     # ------------------ SHORTLISTED CANDIDATES ------------------
     elif menu == "Shortlisted Candidates":
-        st.header("✅ Shortlisted Candidates")
+    st.header("✅ Shortlisted Candidates")
 
-        if "results" not in st.session_state:
-            st.warning("Please perform screening first")
-        else:
-            threshold = st.slider("Select Cut-off Score (%)", 0, 100, 60)
-            shortlisted = st.session_state.results[
-                st.session_state.results["Score (%)"] >= threshold
-            ]
+    if "resumes" not in st.session_state or "job_desc" not in st.session_state:
+        st.warning("Please complete Job Description and Upload Resumes first")
+    else:
+        vectorizer = TfidfVectorizer(stop_words="english")
+        vectors = vectorizer.fit_transform(
+            [st.session_state.job_desc] + st.session_state.resumes
+        )
 
-            st.dataframe(shortlisted)
-            st.session_state.shortlisted = shortlisted
+        similarity_scores = cosine_similarity(
+            vectors[0:1], vectors[1:]
+        ).flatten()
+
+        df = pd.DataFrame({
+            "Candidate Name": st.session_state.names,
+            "Score (%)": (similarity_scores * 100).round(2)
+        }).sort_values(by="Score (%)", ascending=False)
+
+        threshold = st.slider("Select Cut-off Score (%)", 0, 100, 60)
+        shortlisted = df[df["Score (%)"] >= threshold]
+
+        st.dataframe(shortlisted)
+
+        st.session_state.results = df
 
     # ------------------ GRAPHS ------------------
     elif menu == "Graphs":
@@ -158,6 +166,7 @@ else:
 
     # ------------------ LOGOUT ------------------
     st.sidebar.button("Logout", on_click=lambda: st.session_state.update({"logged_in": False}))
+
 
 
 
