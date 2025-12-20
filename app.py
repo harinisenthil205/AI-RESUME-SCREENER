@@ -58,7 +58,7 @@ else:
     if menu == "Job Description":
         st.header("📄 Step 2: Job Description")
 
-        tech = ["Python", "Java", "SQL", "AI", "ML", "Web Development"]
+        tech = ["Python", "Java", "SQL", "AI", "ML", "Web Development", "Javascript", "C", "C++", "Rust"]
         non_tech = ["Communication", "Leadership", "Teamwork"]
 
         t = st.multiselect("Technical Skills", tech)
@@ -103,42 +103,57 @@ else:
 
     # ---------- STEP 4: SHORTLISTING + GRAPHS ----------
     elif menu == "Shortlisting & Graphs":
-        st.header("📊 Step 4: Shortlisting & Analysis")
+    st.header("📊 Step 4: Shortlisting & Analysis")
 
-        if not st.session_state.resumes:
-            st.warning("Upload resumes first")
-        else:
-            jd_words = st.session_state.job_desc.split()
-            data = []
+    if not st.session_state.resumes:
+        st.warning("Upload resumes first")
+    else:
+        jd_words = st.session_state.job_desc.split()
+        data = []
 
-            for r in st.session_state.resumes:
-                score = shortlist(r["text"], jd_words)
-                status = "Shortlisted" if score >= 2 else "Not Shortlisted"
+        for r in st.session_state.resumes:
+            score = shortlist(r["text"], jd_words)
+            data.append({
+                "Candidate Name": r["name"],
+                "Score": score
+            })
 
-                data.append({
-                    "Candidate Name": r["name"],
-                    "Score": score,
-                    "Status": status
-                })
+        df = pd.DataFrame(data)
+        df = df.sort_values(by="Score", ascending=False)
 
-            df = pd.DataFrame(data)
-            st.dataframe(df)
+        # ---------- USER SHORTLIST OPTION ----------
+        shortlist_count = st.selectbox(
+            "Select number of candidates to shortlist",
+            [5, 10, 15, 20, 50, 100]
+        )
 
-            # -------- GRAPHS (SAME PAGE) --------
-            st.subheader("📈 Shortlisting Summary")
+        shortlisted_df = df.head(shortlist_count).copy()
 
-            summary = df["Status"].value_counts()
-            fig, ax = plt.subplots()
-            ax.bar(summary.index, summary.values)
-            ax.set_ylabel("Candidates")
-            ax.set_title("Shortlisting Result")
+        # ---------- SERIAL NUMBER STARTS FROM 1 ----------
+        shortlisted_df.insert(0, "S.No", range(1, len(shortlisted_df) + 1))
 
-            st.pyplot(fig)
+        st.subheader("✅ Shortlisted Candidates")
+        st.dataframe(shortlisted_df, hide_index=True)
+
+        # ---------- GRAPH (HORIZONTAL BAR LIKE IMAGE) ----------
+        st.subheader("📈 Shortlisted Candidate Scores")
+
+        fig, ax = plt.subplots()
+        ax.barh(
+            shortlisted_df["Candidate Name"],
+            shortlisted_df["Score"]
+        )
+        ax.set_xlabel("Matching Score")
+        ax.set_ylabel("Candidates")
+        ax.invert_yaxis()  # highest score on top
+
+        st.pyplot(fig)
 
     # ---------- LOGOUT ----------
     if st.sidebar.button("Logout"):
         st.session_state.logged_in = False
         st.rerun()
+
 
 
 
