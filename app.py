@@ -44,7 +44,8 @@ if not st.session_state.logged_in:
             if username and password:
                 st.session_state.logged_in = True
                 st.success("Login Successful!")
-                st.experimental_rerun()
+                st.rerun()
+
             else:
                 st.error("Please enter login and password")
 
@@ -157,6 +158,7 @@ else:
 
     # ------------------ LOGOUT ------------------
     st.sidebar.button("Logout", on_click=lambda: st.session_state.update({"logged_in": False}))
+
 
 
 
