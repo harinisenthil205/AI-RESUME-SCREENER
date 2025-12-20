@@ -54,6 +54,14 @@ else:
         ["Job Description", "Upload Resumes", "Shortlisting & Graphs"]
     )
 
+        # ---------- LOGOUT BUTTON ----------
+    if st.sidebar.button("🚪 Logout"):
+        st.session_state.logged_in = False
+        st.session_state.job_desc = None
+        st.session_state.resumes = None
+        st.rerun()
+
+
     # ---------- STEP 2: JOB DESCRIPTION ----------
     if menu == "Job Description":
         st.header("📄 Step 2: Job Description")
@@ -174,6 +182,7 @@ else:
     if st.sidebar.button("Logout"):
         st.session_state.logged_in = False
         st.rerun()
+
 
 
 
